@@ -1,110 +1,131 @@
 // useCallback: custom hooks
 // http://localhost:3000/isolated/exercise/02.js
 
-import * as React from 'react'
+import * as React from "react";
 import {
   fetchPokemon,
   PokemonForm,
   PokemonDataView,
   PokemonInfoFallback,
   PokemonErrorBoundary,
-} from '../pokemon'
+} from "../pokemon";
 
-// 🐨 this is going to be our generic asyncReducer
-function pokemonInfoReducer(state, action) {
+function useSafeDispatch(dispatch) {
+  const mountedRef = React.useRef(false);
+
+  // To make this even better, replace "useEffect" with "useLayoutEffect" hook to
+  // make sure that you are correctly setting the mountedRef.current immediately
+  // after React updates the DOM
+  React.useEffect(() => {
+    // Gets called on mount, so set mountedRef to true
+    mountedRef.current = true;
+
+    // Return cleanup function that gets called on unmount, so set mountedRef to false
+    return () => {
+      mountedRef.current = false;
+    }
+  }, []);
+
+  return React.useCallback(
+    (...args) => {
+      if (mountedRef.current) {
+        dispatch(...args);
+      } else {
+        console.log("Component unmounted, dispatch not sent");
+      }
+    },
+    [dispatch]
+  );
+}
+
+function asyncReducer(state, action) {
   switch (action.type) {
-    case 'pending': {
-      // 🐨 replace "pokemon" with "data"
-      return {status: 'pending', pokemon: null, error: null}
+    case "pending": {
+      return {status: action.type, data: null, error: null};
     }
-    case 'resolved': {
-      // 🐨 replace "pokemon" with "data" (in the action too!)
-      return {status: 'resolved', pokemon: action.pokemon, error: null}
+    case "resolved": {
+      return {status: action.type, data: action.data, error: null};
     }
-    case 'rejected': {
-      // 🐨 replace "pokemon" with "data"
-      return {status: 'rejected', pokemon: null, error: action.error}
+    case "rejected": {
+      return {status: action.type, data: null, error: action.error};
     }
     default: {
-      throw new Error(`Unhandled action type: ${action.type}`)
+      throw new Error(`Unhandled action type: ${action.type}`);
     }
+  }
+}
+
+function useAsync(asyncCallback, initialState) {
+  const [state, unsafeDispatch] = React.useReducer(asyncReducer, {
+    status: "idle",
+    data: null,
+    error: null,
+    ...initialState,
+  });
+
+  const safeDispatch = useSafeDispatch(unsafeDispatch);
+  const {status, data, error} = state;
+
+  // Doing useCallback here means the user doesn't have to remember to this on their side, so you optimise it for them
+  const run = React.useCallback(
+    promise => {
+      safeDispatch({type: "pending"});
+
+      promise.then(
+        data => {
+          safeDispatch({type: "resolved", data})
+        },
+        error => {
+          safeDispatch({type: "rejected", error})
+        },
+      );
+    },
+    [safeDispatch]);
+
+  return {
+    status,
+    data,
+    error,
+    run,
   }
 }
 
 function PokemonInfo({pokemonName}) {
-  // 🐨 move all the code between the lines into a new useAsync function.
-  // 💰 look below to see how the useAsync hook is supposed to be called
-  // 💰 If you want some help, here's the function signature (or delete this
-  // comment really quick if you don't want the spoiler)!
-  // function useAsync(asyncCallback, dependencies) {/* code in here */}
-
-  // -------------------------- start --------------------------
-
-  const [state, dispatch] = React.useReducer(pokemonInfoReducer, {
-    status: pokemonName ? 'pending' : 'idle',
-    // 🐨 this will need to be "data" instead of "pokemon"
-    pokemon: null,
-    error: null,
-  })
+  const {data, status, error, run} = useAsync({
+    status: pokemonName ? "pending" : "idle",
+  });
 
   React.useEffect(() => {
-    // 💰 this first early-exit bit is a little tricky, so let me give you a hint:
-    // const promise = asyncCallback()
-    // if (!promise) {
-    //   return
-    // }
-    // then you can dispatch and handle the promise etc...
     if (!pokemonName) {
-      return
+      return;
     }
-    dispatch({type: 'pending'})
-    fetchPokemon(pokemonName).then(
-      pokemon => {
-        dispatch({type: 'resolved', pokemon})
-      },
-      error => {
-        dispatch({type: 'rejected', error})
-      },
-    )
-    // 🐨 you'll accept dependencies as an array and pass that here.
-    // 🐨 because of limitations with ESLint, you'll need to ignore
-    // the react-hooks/exhaustive-deps rule. We'll fix this in an extra credit.
-  }, [pokemonName])
-  // --------------------------- end ---------------------------
 
-  // 🐨 here's how you'll use the new useAsync hook you're writing:
-  // const state = useAsync(() => {
-  //   if (!pokemonName) {
-  //     return
-  //   }
-  //   return fetchPokemon(pokemonName)
-  // }, [pokemonName])
-  // 🐨 this will change from "pokemon" to "data"
-  const {pokemon, status, error} = state
+    run(fetchPokemon(pokemonName));
+  }, [pokemonName, run]);
 
   switch (status) {
-    case 'idle':
-      return <span>Submit a pokemon</span>
-    case 'pending':
-      return <PokemonInfoFallback name={pokemonName} />
-    case 'rejected':
-      throw error
-    case 'resolved':
-      return <PokemonDataView pokemon={pokemon} />
+    case "idle":
+      return <span>Submit a pokemon</span>;
+    case "pending":
+      return <PokemonInfoFallback name={pokemonName} />;
+    case "rejected":
+      throw error;
+    case "resolved":
+      return <PokemonDataView pokemon={data} />;
     default:
-      throw new Error('This should be impossible')
+      throw new Error("This should be impossible");
   }
 }
 
 function App() {
-  const [pokemonName, setPokemonName] = React.useState('')
+  const [pokemonName, setPokemonName] = React.useState("");
 
   function handleSubmit(newPokemonName) {
-    setPokemonName(newPokemonName)
+    setPokemonName(newPokemonName);
   }
 
   function handleReset() {
-    setPokemonName('')
+    setPokemonName("");
   }
 
   return (
@@ -129,7 +150,7 @@ function AppWithUnmountCheckbox() {
           type="checkbox"
           checked={mountApp}
           onChange={e => setMountApp(e.target.checked)}
-        />{' '}
+        />{" "}
         Mount Component
       </label>
       <hr />
@@ -138,4 +159,4 @@ function AppWithUnmountCheckbox() {
   )
 }
 
-export default AppWithUnmountCheckbox
+export default AppWithUnmountCheckbox;
