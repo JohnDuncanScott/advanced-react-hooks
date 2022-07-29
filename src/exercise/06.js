@@ -4,43 +4,45 @@
 import * as React from 'react'
 
 function useMedia(query, initialState = false) {
-  const [state, setState] = React.useState(initialState)
-  // 🐨 call React.useDebugValue here.
-  // 💰 here's the formatted label I use: `\`${query}\` => ${state}`
+  const [state, setState] = React.useState(initialState);
+  const formatMediaDebugValue = ({query, state}) => `'${query}' => ${state}`;
+  React.useDebugValue({query, state}, formatMediaDebugValue);
 
   React.useEffect(() => {
-    let mounted = true
-    const mql = window.matchMedia(query)
+    let mounted = true;
+    const mql = window.matchMedia(query);
+
     function onChange() {
       if (!mounted) {
-        return
+        return;
       }
-      setState(Boolean(mql.matches))
+
+      setState(Boolean(mql.matches));
     }
 
-    mql.addListener(onChange)
-    setState(mql.matches)
+    mql.addListener(onChange);
+    setState(mql.matches);
 
     return () => {
-      mounted = false
-      mql.removeListener(onChange)
+      mounted = false;
+      mql.removeListener(onChange);
     }
-  }, [query])
+  }, [query]);
 
-  return state
+  return state;
 }
 
 function Box() {
-  const isBig = useMedia('(min-width: 1000px)')
-  const isMedium = useMedia('(max-width: 999px) and (min-width: 700px)')
-  const isSmall = useMedia('(max-width: 699px)')
-  const color = isBig ? 'green' : isMedium ? 'yellow' : isSmall ? 'red' : null
+  const isBig = useMedia('(min-width: 1000px)');
+  const isMedium = useMedia('(max-width: 999px) and (min-width: 700px)');
+  const isSmall = useMedia('(max-width: 699px)');
+  const color = isBig ? 'green' : isMedium ? 'yellow' : isSmall ? 'red' : null;
 
-  return <div style={{width: 200, height: 200, backgroundColor: color}} />
+  return <div style={{width: 200, height: 200, backgroundColor: color}} />;
 }
 
 function App() {
-  return <Box />
+  return <Box />;
 }
 
-export default App
+export default App;
